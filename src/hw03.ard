@@ -43,9 +43,23 @@
 
 -- 5. Докажите дистрибутивность умножения над сложением для натуральных чисел.
 
-\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n => {?}
+\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n \elim n
+  | 0 => idp
+  | suc n =>
+    ((m + k) * n) + (m + k) ==< pmap (`+ (m + k)) (rdistr n m k) >==
+    ((m * n) + k * n) + (m + k) ==< sym (+-assoc ((m * n) + k * n) m k) >==
+    (((m * n) + k * n) + m) + k ==< pmap (`+ k) (+-assoc (m * n) (k * n) m) >==
+    ((m * n) + (k * n + m)) + k ==< pmap (`+ k) (pmap (m * n +) (+-comm (k * n) m)) >==
+    ((m * n) + (m + k * n)) + k ==< pmap (`+ k) (sym (+-assoc (m * n) m (k * n))) >==
+    (((m * n) + m) + k * n) + k ==< +-assoc ((m * n) + m) (k * n) k >==
+    ((m * n) + m) + (k * n + k) `qed
 
-\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k => {?}
+\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k \elim k
+  | 0 => idp
+  | suc k =>
+    n * (m + k) + n ==< pmap (`+ n) (ldistr n m k) >==
+    (n * m + n * k) + n ==< +-assoc (n * m) (n * k) n >==
+    n * m + (n * k + n) `qed
 
 -- 6. Определите конгруэнтность для функций двух аргументов через transport.
 --    Можно использовать любые функции, определенные через transport.
