@@ -1,3 +1,4 @@
+\import Debug.Meta
 \import Utils
 \import lect04 \hiding (J, Vec, nil, sym, v++)
 \open Nat(+,*)
@@ -82,7 +83,19 @@
 --     Функция, преобразующая Vec A n в Fin n -> A, была реализована на лекции.
 --     Реализуйте обратную функцию.
 
-\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n => {?}
+\func coin {A : \Type} {n : Nat} (f : Fin n -> A) : Vec A n \elim n
+  | 0 => vnil
+  | suc n => vcons (f fzero) (coin {A} {n} \lam x => f (fsuc x))
+
+\func testList (x : Fin 4) : Nat
+  | fzero => 1
+  | fsuc fzero => 3
+  | fsuc (fsuc fzero) => 42
+  | fsuc (fsuc (fsuc x)) => 55
+
+\func testVec : Vec Nat 4 => vcons 1 (vcons 3 (vcons 42 (vcons 55 vnil)))
+
+\func coinTest1 : coin testList = testVec => idp
 
 -- Optional task
 -- 8. Определите тип матриц и ряд функций над ними.
@@ -108,7 +121,20 @@
 
 -- 9. Определите факториал через Nat-rec.
 
+\func fac (n : Nat) : Nat => Nat-rec Nat 1 (\lam x r => (x + 1) * r) n
+
+\func facTest1 : fac 0 = 1 => idp
+\func facTest2 : nf (fac 1) = 1 => idp
+\func facTest3 : nf (fac 2) = 2 => idp
+\func facTest4 : fac 3 = 6 => idp
+
 -- 10. Докажите ассоциативность сложения для натуральных чисел через Nat-elim.
+
+\func +-assoc (x y z : Nat) : (x + y) + z = x + (y + z) =>
+  Nat-elim  (\lam x => (x + y) + z = x + (y + z))
+            idp
+            (\lam n p => pmap suc p)
+            x
 
 -- 11. Определите рекурсор и элиминатор для D.
 
@@ -117,6 +143,24 @@
   | con2 D D
   | con3 (Nat -> D)
 
+\func D-elim (P : D -> \Type)
+             (c1 : \Pi (n : Nat) -> P (con1 n))
+             (c2 : \Pi (x y : D) -> P (con2 x y))
+             (c3 : \Pi (f : Nat -> D) -> P (con3 f))
+             (x : D) : P x \elim x
+  | con1 n => c1 n
+  | con2 x y => c2 x y
+  | con3 f => c3 f
+
+\func D-rec (P : \Type)
+            (c1 : P)
+            (c2 : P)
+            (c3 : P)
+            (x : D) : P \elim x
+  | con1 n => c1
+  | con2 x y => c2
+  | con3 f => c3
+
 {- To check that the definition of D-elim and D-rec is correct, you can try to implement foo using D-rec.
 \func foo (d : D) : Nat
   | con1 n => n
@@ -124,15 +168,38 @@
   | con3 g => foo (g (foo (g 100)))
 -}
 
+\func foo (d : D) : Nat
+  | con1 n => n
+  | con2 d1 d2 => foo d1 Nat.+ foo d2
+  | con3 g => foo (g (foo (g 100)))
+
 -- 12. Определите рекурсор и элиминатор для List.
+
+\func List-elim {A : \Type}
+                (P : List A -> \Type)
+                (e : P nil)
+                (s : \Pi (x : A) (xs : List A) -> P xs -> P (x :: xs))
+                (l : List A) : P l \elim l
+  | nil => e
+  | :: x xs => s x xs (List-elim P e s xs)
+
+\func List-rec {A : \Type}
+               (P : \Type)
+               (e : P)
+               (s : A -> List A -> P -> P)
+               (l : List A) : P \elim l
+  | nil => e
+  | :: x xs => s x xs  (List-rec P e s xs)
 
 -- 13. Докажите pmap при помощи паттерн матчинга с idp.
 
-\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a' => {?}
+\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a' \elim p
+  | idp => idp
 
 -- 14. Докажите pmap2 при помощи паттерн матчинга с idp.
 
-\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' => {?}
+\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' \elim p, q
+  | idp, idp => idp
 
 -- Optional task
 -- 15. У оператора J есть другая форма, которую мы будем называть Jalt. Докажите, что J и Jalt эквивалентны, то есть выразите одно через другое и наоборот.
