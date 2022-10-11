@@ -60,15 +60,13 @@
 --    Высота листа равна 0.
 
 \data Tree (A : \Type) (n : Nat) \elim n
-  | suc n => {
-    | Leaf
-    | Node A (Tree A n) (Tree A n)
-  }
+  | zero => Leaf
+  | suc n => Node A (Tree A n) (Tree A n)
 
 -- определите функцию, возвращающую высоту дерева.
 
 \func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) \elim n, t
-  | suc n, Leaf => fzero
+  | zero, Leaf => fzero
   | suc n, Node a l r => fsuc (fmax (n + 1) (height n l) (height n r))
     \where {
       \func fmax (n : Nat) (x y : Fin n) : Fin n \with
@@ -145,21 +143,21 @@
 
 \func D-elim (P : D -> \Type)
              (c1 : \Pi (n : Nat) -> P (con1 n))
-             (c2 : \Pi (x y : D) -> P (con2 x y))
-             (c3 : \Pi (f : Nat -> D) -> P (con3 f))
+             (c2 : \Pi (x y : D) -> P x -> P y -> P (con2 x y))
+             (c3 : \Pi (f : Nat -> D) -> (\Pi (n : Nat) -> P (f n)) -> P (con3 f))
              (x : D) : P x \elim x
   | con1 n => c1 n
-  | con2 x y => c2 x y
-  | con3 f => c3 f
+  | con2 x y => c2 x y (D-elim P c1 c2 c3 x) (D-elim P c1 c2 c3 y)
+  | con3 f => c3 f (\lam n => D-elim P c1 c2 c3 (f n))
 
 \func D-rec (P : \Type)
-            (c1 : P)
-            (c2 : P)
-            (c3 : P)
+            (c1 : Nat -> P)
+            (c2 : D -> D -> P -> P -> P)
+            (c3 : (Nat -> D) -> (Nat -> P) -> P)
             (x : D) : P \elim x
-  | con1 n => c1
-  | con2 x y => c2
-  | con3 f => c3
+  | con1 n => c1 n
+  | con2 x y => c2 x y (D-rec P c1 c2 c3 x) (D-rec P c1 c2 c3 y)
+  | con3 f => c3 f (\lam n => D-rec P c1 c2 c3 (f n))
 
 {- To check that the definition of D-elim and D-rec is correct, you can try to implement foo using D-rec.
 \func foo (d : D) : Nat
@@ -172,6 +170,11 @@
   | con1 n => n
   | con2 d1 d2 => foo d1 Nat.+ foo d2
   | con3 g => foo (g (foo (g 100)))
+
+\func D-rec-foo  (d : D) : Nat => D-rec Nat (\lam n => n) (\lam d1 d2 x y => x + y) (\lam _ f => f (f 100)) d
+
+\func testD : D => con2 (con1 10) (con3 (\lam n => con1 n))
+\func testD-rec-foo : foo testD = D-rec-foo testD => idp
 
 -- 12. Определите рекурсор и элиминатор для List.
 
@@ -186,10 +189,10 @@
 \func List-rec {A : \Type}
                (P : \Type)
                (e : P)
-               (s : A -> List A -> P -> P)
+               (s : A -> P -> P)
                (l : List A) : P \elim l
   | nil => e
-  | :: x xs => s x xs  (List-rec P e s xs)
+  | :: x xs => s x (List-rec P e s xs)
 
 -- 13. Докажите pmap при помощи паттерн матчинга с idp.
 
