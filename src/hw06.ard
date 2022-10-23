@@ -1,3 +1,4 @@
+\import Debug.Meta
 \import Meta
 \import Paths.Meta
 \import Utils
@@ -110,20 +111,29 @@
 \data State' (S A : \Type)
   | state' (S -> \Sigma S A)
 
+\func runState {S A : \Type} (x : State' S A) (s : S) : \Sigma S A \elim x {
+  | state' x => x s
+}
+
 \instance StateMonad' (S : \Set) : Monad (State' S)
   | return {A : \Set} (a : A) : State' S A => state' (\lam s => (s, a))
   | >>= {A B : \Set} (x : State' S A) (k : A -> State' S B) : State' S B => state' (\lam s => \let
-    | runState {S A : \Type} (x : State' S A) (s : S) : \Sigma S A => \case x \with {
-      | state' x => x s
-    }
     | (s', a) => runState x s
     \in runState (k a) s'
   )
   | id-left {A B : \Set} (a : A) (k : A -> State' S B) : (return a >>= k) = k a =>
-    (return a >>= k) ==< {?} >==
+    (return a >>= k) ==< idp >==
+    state' (\lam s => \let | (s', b) => runState (return a) s \in runState (k b) s') ==< idp >==
+    state' (\lam s => \let | (s', b) => (s, a) \in runState (k b) s') ==< idp >==
+    state' (\lam s => runState (k a) s) ==< idp >==
+    state' (runState (k a)) ==< sym (state-elmma a) >==
     k a `qed
   | id-right {A : \Set} (m : State' S A) : (m >>= return) = m \elim m {
     | state' x => idp
   }
   | >>=-assoc {A B C : \Set} (m : State' S A) (k : A -> State' S B) (h : B -> State' S C)
   : (m >>= (\lam x => k x >>= h)) = ((m >>= k) >>= h) => idp
+  \where {
+    \func state-elmma {S A : \Set} (st : State' S A) : state' (runState st) = st \elim st
+      | state' x => idp
+  }
