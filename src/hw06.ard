@@ -2,6 +2,7 @@
 \import Meta
 \import Paths.Meta
 \import Utils
+\import hw01 (gcd)
 \import hw04 (pmap2)
 \import lect05
 \import lect06
@@ -40,6 +41,17 @@
 
 -- 4. Определите \record, состоящий из пар взаимно простых натуральных чисел.
 --    Определите тип, состоящий из натуральных чисел, взаимно простых с 60.
+
+\func is-coprime (x y : Nat) : Bool => \case gcd x y \with {
+  | 1 => true
+  | _ => false
+}
+
+\record Coprime (x y : Nat) (p : T (is-coprime x y))
+
+\func Coprime60 (x : Nat) => Coprime x 60
+
+\func test-coprime => Coprime60 13
 
 -- 5. Закончите определение класса монад. Этот класс должен содержать все монадные законы и реализовывать все поля из класса функторов.
 
@@ -126,7 +138,7 @@
     state' (\lam s => \let | (s', b) => runState (return a) s \in runState (k b) s') ==< idp >==
     state' (\lam s => \let | (s', b) => (s, a) \in runState (k b) s') ==< idp >==
     state' (\lam s => runState (k a) s) ==< idp >==
-    state' (runState (k a)) ==< sym (state-elmma a) >==
+    state' (runState (k a)) ==< state-elmma (k a) >==
     k a `qed
   | id-right {A : \Set} (m : State' S A) : (m >>= return) = m \elim m {
     | state' x => idp
