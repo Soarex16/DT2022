@@ -1,10 +1,25 @@
+\import Meta
+\import Paths (pmap2)
 \import Utils
 \import lect07
 \open Nat(+,*)
 
 -- 1. Определите предикат принадлежности элемента списку.
 
-\data In {A : \Type} (a : A) (xs : List A)
+\data In {A : \Type} (a : A) (xs : List A) \with
+  | x, :: y ys => {
+    | in-eq (x = y)
+    | in-neq (In x ys)
+  }
+
+\func inTest1 : In 1 (3 :: 2 :: 1 :: nil) => in-neq (in-neq (in-eq idp))
+\func inTest2 : In 1 (3 :: 2 :: nil) -> Empty => \lam p => \case p \with {
+  | in-eq p1 => \case p1
+  | in-neq i => \case i \with {
+    | in-eq p1 => \case p1
+    | in-neq i1 => \case i1
+  }
+}
 
 -- Optional:
 -- 2. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'.
@@ -12,24 +27,65 @@
 -- 3. Определите рефлексивное транзитивное замыкание отношения.
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
 
-\data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+\data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x z : A)
+  | refl (R x z)
+  | trans (\Sigma (y : A) (ReflTransClosure R x y) (R y z))
 
 -- 4. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
 
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
   : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
-  => {?}
+  => \lam x y => (
+    \lam r_x_y => ReflTransClosure.trans (y, ReflTransClosure.refl r_x_y, refl y),
+    \lam r => helper R refl trans x y r
+ )
+  \where {
+    \func helper {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z) (x y : A) (r : ReflTransClosure R x y) : R x y \elim r {
+      | ReflTransClosure.refl p => p
+      | ReflTransClosure.trans t => trans x t.1 y (helper R refl trans x t.1 t.2) t.3
+    }
+  }
 
 -- 5. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
 
+\data Sublist {A : \Type} (xs ys : List A) \with
+  | nil, ys => nil-sublist
+  | :: x xs, :: y ys => head-sublist (x = y) (Sublist xs ys)
+  | xs, :: y ys => tail-sublist (Sublist xs ys)
+
+\func sublistTest1 : Sublist nil (3 :: 2 :: 1 :: nil) => nil-sublist
+\func sublistTest2 : Sublist (2 :: nil) (3 :: 2 :: 1 :: nil) => tail-sublist (head-sublist idp nil-sublist)
+\func sublistTest3 : Sublist (3 :: 1 :: nil) (3 :: 2 :: 1 :: nil) => head-sublist idp (tail-sublist (head-sublist idp nil-sublist))
+\func sublistTest4 : Sublist (4 :: nil) (2 :: 1 :: nil) -> Empty => \lam p => \case p \with {
+  | head-sublist p1 s => \case p1
+  | tail-sublist s => \case s \with {
+    | head-sublist p1 s1 => \case p1
+    | tail-sublist s1 => \case s1
+  }
+}
+
 -- 6. Докажите, что Sublist (filter p xs) xs для любых p и xs.
+
+\func Sublist-lem {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => nil-sublist
+  | :: x xs => mcases \with {
+    | true => head-sublist idp (Sublist-lem p xs)
+    | false => tail-sublist (Sublist-lem p xs)
+  }
 
 -- 7. Определите filter через if, а не через \case.
 --     Докажите для этой версии filter лемму filter-lem.
 
-\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A => {?}
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | :: x xs => if (p x) (x :: filter' p xs) (filter' p xs)
 
-\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) => {?}
+\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) \elim xs
+  | nil => z<=_
+  | :: x xs => cases (p x) \with {
+    | true => s<=s (filter-lem p xs)
+    | false => <=-step-lem (filter-lem p xs)
+  }
 
 -- 8. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
 
@@ -37,12 +93,33 @@
 
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => {?}
+\func isEven-dec : DecPred isEven => \lam n => \case \elim n \with {
+  | 0 => yes (zero, idp)
+  | suc n1 => {?}
+}
 
 -- 10. Докажите, что если равенство элементов A разрешимо, то и равенство элементов List A тоже разрешимо.
 
 \instance ListEq {A : \Type} (dec : Eq A) : Eq (List A)
-  | decideEq => {?}
+  | decideEq (x y : List A) : Decide (x = y) \with {
+    | nil, nil => yes idp
+    | nil, :: y ys => no (\case __)
+    | :: x xs, nil => no (\case __)
+    | :: x xs, :: y ys => \case dec.decideEq x y, decideEq xs ys \with {
+      | yes p-head, yes p-tail => yes (pmap2 (::) p-head p-tail)
+      | yes a, no e => no (\lam p => e (pmap tail p))
+      | no e, _ => no (\lam p => e (pmap (headOrDefault x) p))
+    }
+  }
+    \where {
+      \func headOrDefault {A : \Type} (x : A) (xs : List A) : A \elim xs
+        | nil => x
+        | :: a xs => a
+      \func tail {A : \Type} (x : List A) : List A => \case x \with {
+        | nil => nil
+        | :: h t => t
+      }
+    }
 
 -- 11. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
