@@ -1,5 +1,6 @@
 \import Meta
 \import Paths (pmap2)
+\import Paths.Meta
 \import Utils
 \import lect07
 \open Nat(+,*)
@@ -95,7 +96,15 @@
 
 \func isEven-dec : DecPred isEven => \lam n => \case \elim n \with {
   | 0 => yes (zero, idp)
-  | suc n1 => {?}
+  | suc n => \case \elim  n \with {
+    | 0 => no isNotEven-1
+    | suc n => {?}
+  }
+} \where {
+  \func isNotEven-1 (p : isEven 1) : Empty
+    | (n, p) => \case \elim n, p \with {
+      | 0, ()
+    }
 }
 
 -- 10. Докажите, что если равенство элементов A разрешимо, то и равенство элементов List A тоже разрешимо.
@@ -123,14 +132,27 @@
 
 -- 11. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
-\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => {?}
+\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p =>
+  unfold (FromDecToBool, FromBoolToDec) (ext (bdb-lemma p))
+  \where {
+    \func bdb-lemma {A : \Type} (p : A -> Bool) : \Pi (a : A) -> (\case T-dec {p a} \with {
+      | yes _ => true
+      | no _ => false
+    }) = p a => \lam a => cases (p a) \with {
+      | true => idp
+      | false => idp
+    }
+  }
 
 -- Мы не можем доказать, что FromBoolToDec (FromDecToBool P) = P, но мы можем доказать более слабое утверждение: эти предикаты логически эквивалентны.
 -- Для этого введем эквивалентность предикатов.
 
 \func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
-  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x
-  => {?}
+  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x =>
+  unfold (FromDecToBool, FromBoolToDec) (\lam x => mcases \with {
+    | yes p => (\lam t => p, \lam p => ())
+    | no e => (absurd, e)
+  })
 
 -- Optional:
 -- 12. Парадокс Рассела показывает, что не существует множества всех множеств.
