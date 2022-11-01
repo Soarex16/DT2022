@@ -1,14 +1,62 @@
 \import Data.Bool
 \import Data.List \hiding (headDef)
-\import Utils (<->)
-\import lect08
+\import Function.Meta
+\import Logic.Meta
+\import Meta
 \import Order.LinearOrder
+\import Paths.Meta
+\import Utils (<->)
+\import hw04
+\import lect02 (absurd)
+\import lect08
 \open LinearOrder
 
 -- 1. Реализуйте функцию filter и докажите ее корректность, то есть, что выполнены следующие условия:
 --    * filter p xs является подсписком xs
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
+
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | :: x xs => \case p x \with {
+    | true => x :: filter p xs
+    | false => filter p xs
+  }
+
+\data Sublist {A : \Type} (xs ys : List A) \with
+  | nil, ys => nil-sublist
+  | :: x xs, :: y ys => head-sublist (x = y) (Sublist xs ys)
+  | xs, :: y ys => tail-sublist (Sublist xs ys)
+
+\func filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => nil-sublist
+  | :: x xs => mcases \with {
+    | true => head-sublist idp (filter-sublist p xs)
+    | false => tail-sublist (filter-sublist p xs)
+  }
+
+\data AllMatching {A : \Type} (p : A -> Bool) (xs : List A) \elim xs
+  | nil => all-nil
+  | :: x xs => all-cons (p x = true) (AllMatching p xs)
+
+\func filter-all-matching {A : \Type} (p : A -> Bool) (xs : List A) : AllMatching p (filter p xs) \elim xs
+  | nil => all-nil
+  | :: x xs => mcases {_} {arg addPath} \with {
+    | true, p_x=true => all-cons p_x=true (filter-all-matching p xs)
+    | false, p_x=false => filter-all-matching p xs
+  }
+
+\func sublist-all-matching-filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) (ys : List A) (s : Sublist ys xs) (am : AllMatching p ys) : Sublist ys (filter p xs) \elim xs, ys, s, am
+  | xs, nil, nil-sublist, all-nil => nil-sublist
+  | :: y xs, nil, tail-sublist s, all-nil => nil-sublist
+  | :: x xs, :: y ys, head-sublist x=y s, all-cons p_y=true am => mcases {_} {arg addPath} \with {
+    | true, _ => head-sublist x=y (sublist-all-matching-filter-sublist p xs ys s am)
+    | false, p_x=false => rewriteF x=y at p_y=true $ contradiction
+  }
+  | :: x xs, :: y ys, tail-sublist s, all-cons p_y=true am => mcases \with {
+    | true => tail-sublist (sublist-all-matching-filter-sublist p xs (y :: ys) s (all-cons p_y=true am))
+    | false => sublist-all-matching-filter-sublist p xs (y :: ys) s (all-cons p_y=true am)
+  }
 
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
 
