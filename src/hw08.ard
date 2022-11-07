@@ -4,10 +4,9 @@
 \import Logic.Meta
 \import Meta
 \import Order.LinearOrder
+\import Paths (inv)
 \import Paths.Meta
-\import Utils (<->)
-\import hw04
-\import lect02 (absurd)
+\import Utils (<->, pmap)
 \import lect08
 \open LinearOrder
 
@@ -46,7 +45,8 @@
     | false, p_x=false => filter-all-matching p xs
   }
 
-\func sublist-all-matching-filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) (ys : List A) (s : Sublist ys xs) (am : AllMatching p ys) : Sublist ys (filter p xs) \elim xs, ys, s, am
+\func sublist-all-matching-filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) (ys : List A)
+                                          (s : Sublist ys xs) (am : AllMatching p ys) : Sublist ys (filter p xs) \elim xs, ys, s, am
   | xs, nil, nil-sublist, all-nil => nil-sublist
   | :: y xs, nil, tail-sublist s, all-nil => nil-sublist
   | :: x xs, :: y ys, head-sublist x=y s, all-cons p_y=true am => mcases {_} {arg addPath} \with {
@@ -60,26 +60,203 @@
 
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
 
+\func perm-sym {A : Dec} {l1 l2 : List A} (p : Perm l1 l2) : Perm l2 l1 \elim l1, l2, p
+  | nil, nil, perm-nil => perm-nil
+  | :: x xs, :: y ys, perm-cons x=y perm-xs-ys => perm-cons (inv x=y) (perm-sym perm-xs-ys)
+  | :: x (:: x' xs), :: y (:: y' ys), perm-swap x=y' x'=y xs=ys => perm-swap (inv x'=y) (inv x=y') (inv xs=ys)
+  | l1, l2, perm-trans p1 p2 => perm-trans (perm-sym p2) (perm-sym p1)
+
+\func perm-eq {A : Dec} {l1 l2 : List A} (e : l1 = l2) : Perm l1 l2 \elim l1, l2, e
+  | nil, nil, e => perm-nil
+  | :: x xs, :: y ys, e =>
+    \let
+      | head-eq => pmap (headDef x) e
+      | tail-eq => pmap tailOrNil e
+    \in perm-cons head-eq (perm-eq tail-eq)
+  \where {
+    \func headDef {A : \Type} (d : A) (xs : List A) : A \elim xs
+      | nil => d
+      | :: x xs => x
+
+    \func tailOrNil {A : \Type} (xs : List A) : List A \elim xs
+      | nil => nil
+      | :: x xs => xs
+  }
+
+\func perm-sort {A : Dec} (l1 l2 : List A) : Perm l1 l2 <-> (Insertion.sort l1 = Insertion.sort l2) =>
+  (perm->sort, sort->perm)
+  \where {
+    \func perm->sort {A : Dec} {l1 l2 : List A} (p : Perm l1 l2) : Insertion.sort l1 = Insertion.sort l2 \elim  l1, l2, p
+      | nil, nil, perm-nil => idp
+      | :: x (:: x' xs), :: y (:: y' ys), perm-swap x=y' x'=y xs=ys =>
+        \let ins-comm-ys => Insertion.sort-perm.insert-comm y' y (Insertion.sort ys)
+        \in rewrite x=y' (rewrite x'=y (rewrite xs=ys ins-comm-ys))
+      | :: x xs, :: y ys, perm-cons x=y perm-xs-ys =>
+        \let sort-xs=sort-ys => perm->sort perm-xs-ys
+        \in rewrite x=y (pmap (Insertion.sort.insert y) sort-xs=sort-ys)
+      | xs, ys, perm-trans perm-xs-zs perm-zs-ys =>
+        \let
+          | sort-xs=sort-zs => perm->sort perm-xs-zs
+          | sort-zs=sort-ys => perm->sort perm-zs-ys
+        \in rewrite sort-xs=sort-zs sort-zs=sort-ys
+
+    \func sort->perm {A : Dec} {l1 l2 : List A} (p : Insertion.sort l1 = Insertion.sort l2) : Perm l1 l2 \elim  l1, l2, p
+      | nil, nil, p => perm-nil
+      | nil, :: y ys, p => perm-trans (perm-eq p) (perm-sym (Insertion.sort-perm (y :: ys)))
+      | :: x xs, nil, p => perm-trans (Insertion.sort-perm (x :: xs)) (perm-eq p)
+      | :: x xs, :: y ys, p =>
+        \let
+          | perm-xs-sort-ys => rewrite p (Insertion.sort-perm (x :: xs))
+          | sort-perm-ys => perm-sym (Insertion.sort-perm (y :: ys))
+        \in perm-trans perm-xs-sort-ys sort-perm-ys
+  }
+
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
-\func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
-  => {?}
+\func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l =>
+  {?}
 
 -- 4. Определите факториал через хвостовую рекурсию.
 --    Докажите, что он равен обычному определению факториала.
+
+\func fac (x : Nat) : Nat \elim x
+  | 0 => 1
+  | 1 => 1
+  | suc n => suc n Nat.* fac n
+
+\func tail-fac (x : Nat) : Nat => helper x 1
+  \where {
+    \func helper (x : Nat) (acc : Nat) : Nat \elim x
+      | 0 => acc
+      | 1 => acc
+      | suc n => helper n (suc n Nat.* acc)
+  }
+
+\func fac-equiv : fac = tail-fac => ext fac-equiv-lemma
+  \where {
+    \func fac-equiv-lemma (x : Nat) : fac x = tail-fac x => unfold tail-fac \case \elim x \with {
+      | 0 => idp
+      | 1 => idp
+      | suc x => {?}
+    }
+  }
 
 -- 5. Определите функцию, которая проверяет правильность скобочной последовательности.
 --    Докажите ее корректность.
 
 \data Paren | Left | Right
 
-\func isBalanced (xs : List Paren) : Bool
-  => {?}
+\func isBalanced (xs : List Paren) : Bool => helper xs 0
+  \where {
+    \func helper (xs : List Paren) (level : Nat) : Bool
+      | nil, 0 => true
+      | nil, lvl => false
+      | :: x xs, lvl => \case \elim x, \elim lvl \with {
+        | Left, lvl => helper xs (suc lvl)
+        | Right, suc lvl => helper xs lvl
+        | Right, 0 => false
+      }
+  }
+
+\func testIsBalanced1 : isBalanced nil = true => idp
+
+\func testIsBalanced2 : isBalanced (Left :: Right :: nil) = true => idp
+
+\func testIsBalanced3 : isBalanced (Left :: Left :: Right :: Right :: nil) = true => idp
+
+\func testIsBalanced4 : isBalanced (Left :: Right :: Left :: Right :: nil) = true => idp
+
+\func testIsBalanced5 : isBalanced (Left :: nil) = false => idp
+
+\func testIsBalanced6 : isBalanced (Right :: nil) = false => idp
 
 \data Balanced (xs : List Paren) \with
   | nil => nil-balanced
   | :: Left xs => cons-balanced {ys : List Paren} (Balanced ys) (xs = ys ++ Right :: nil)
   | xs => append-balanced {ys zs : List Paren} (Balanced ys) (Balanced zs) (xs = ys ++ zs)
 
-\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs
-  => {?}
+\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs => (
+  \lam p => \case \elim xs \with {
+    | nil => nil-balanced
+    | :: b bs => {?}
+    --        \case \elim b \with {
+    --          | Left => cons-balanced {?} {?}
+    --          | Right => {?}
+    --        }
+  },
+  \lam b => \case \elim xs, b \with {
+    | nil, nil-balanced => idp
+    | :: Left xs, cons-balanced {ys} ys-b xs=ys+r => {?}
+    --      \let sub-b => (isBalanced-correct ys).2 ys-b
+    --      \in {?}
+    | xs, append-balanced ys-b zs-b xs=ys+zs => {?}
+  }
+)
+
+\func last {A : \Type} (x : A) (xs : List A) : \Sigma (ys : List A) (y : A) (x :: xs = ys ++ y :: nil)
+  | d, nil => (nil, d, idp)
+  | d, :: x xs =>
+    \let (ls, l, p) => last x xs
+    \in (d :: ls, l, pmap (:: d) p)
+
+\func isBalanced' (xs : List Paren) : Bool
+  | nil => true
+  | :: b xs => \case \elim b, (last b xs) \as ll \with {
+    | Right, _ => false
+    | Left, (ys, y, p) => \case \elim y \with {
+      | Left => false
+      | Right => true
+    }
+  }
+
+\func testIsBalanced1' : isBalanced' nil = true => idp
+
+\func testIsBalanced2' : isBalanced' (Left :: Right :: nil) = true => idp
+
+\func testIsBalanced3' : isBalanced' (Left :: Left :: Right :: Right :: nil) = true => idp
+
+\func testIsBalanced4' : isBalanced' (Left :: Right :: Left :: Right :: nil) = true => idp
+
+\func testIsBalanced5' : isBalanced' (Left :: nil) = false => idp
+
+\func testIsBalanced6' : isBalanced' (Right :: nil) = false => idp
+
+{-
+\data Balanced (xs : List Paren) \with
+  | nil => nil-balanced
+  | :: Left xs => cons-balanced {ys : List Paren} (Balanced ys) (xs = ys ++ Right :: nil)
+  | xs => append-balanced {ys zs : List Paren} (Balanced ys) (Balanced zs) (xs = ys ++ zs)
+-}
+
+\func isBalanced'' (xs : List Paren) : Bool
+  | nil => true
+  | :: b xs => {?}
+
+\func isBalanced'-correct (xs : List Paren) : (isBalanced' xs = true) <-> Balanced xs =>
+  (isBal=true->Bal xs, Bal->isBal=true xs)
+  \where {
+    \func isBal=true->Bal (xs : List Paren) (b : isBalanced' xs = true) : Balanced xs \elim xs, b
+      | nil, _ => nil-balanced
+      | :: b bs, isB => \case \elim b \with {
+        | Left => \case (last Left bs) \as p \with {
+          | (ys, Right, p1) => {?}
+          | (ys, Left, p1) => {?}
+        }
+        | Right => {?}
+      }
+
+    \func Bal->isBal=true (xs : List Paren) (b : Balanced xs) : isBalanced' xs = true \elim xs, b
+      | nil, nil-balanced => idp
+      | :: Left xs, cons-balanced {ys} ys-b xs=ys+r => mcases \with {
+        | Left => {?}
+        | Right => idp
+      }
+      | xs, append-balanced {ys} {zs} ys-b zs-b xs=ys+zs => {?}
+--        \let
+--          | by => Bal->isBal=true ys
+--          | bz => Bal->isBal=true zs
+--          | yy => by ys-b
+--          | zz => bz zs-b
+--        \in {?}
+  }
+
