@@ -1,12 +1,13 @@
+\import Arith.Nat
 \import Data.Bool
 \import Data.List \hiding (headDef)
 \import Function.Meta
 \import Logic.Meta
 \import Meta
 \import Order.LinearOrder
-\import Paths (inv)
+\import Paths (*>, ==<, >==, inv, qed)
 \import Paths.Meta
-\import Utils (<->, pmap)
+\import Utils (<->, pmap, sym)
 \import lect08
 \open LinearOrder
 
@@ -121,24 +122,27 @@
 
 \func fac (x : Nat) : Nat \elim x
   | 0 => 1
-  | 1 => 1
   | suc n => suc n Nat.* fac n
 
-\func tail-fac (x : Nat) : Nat => helper x 1
+\func tail-fac (x : Nat) : Nat => helper 1 x
   \where {
-    \func helper (x : Nat) (acc : Nat) : Nat \elim x
+    \func helper (acc n : Nat) : Nat \elim n
       | 0 => acc
-      | 1 => acc
-      | suc n => helper n (suc n Nat.* acc)
+      | suc n => helper (suc n Nat.* acc) n
   }
 
-\func fac-equiv : fac = tail-fac => ext fac-equiv-lemma
+\func fac-equiv : fac = tail-fac => sym $ unfold tail-fac (ext aux)
   \where {
-    \func fac-equiv-lemma (x : Nat) : fac x = tail-fac x => unfold tail-fac \case \elim x \with {
+    \func aux (n : Nat) : tail-fac.helper 1 n = fac n =>
+      tail-fac.helper 1 n ==< fac-equiv-lemma n 1 >==
+      1 Nat.* fac n ==< NatSemiring.ide-left >==
+      fac n `qed
+    \func fac-equiv-lemma (n acc : Nat) : tail-fac.helper acc n = acc Nat.* fac n \elim n
       | 0 => idp
-      | 1 => idp
-      | suc x => {?}
-    }
+      | suc n =>
+        fac-equiv-lemma n (suc n Nat.* acc) *>
+        pmap (\lam x => x Nat.* fac n) NatSemiring.*-comm *>
+        NatSemiring.*-assoc
   }
 
 -- 5. Определите функцию, которая проверяет правильность скобочной последовательности.
@@ -146,28 +150,25 @@
 
 \data Paren | Left | Right
 
-\func isBalanced (xs : List Paren) : Bool => helper xs 0
+\func isBalanced (xs : List Paren) : Bool => helper 0 xs
   \where {
-    \func helper (xs : List Paren) (level : Nat) : Bool
-      | nil, 0 => true
-      | nil, lvl => false
-      | :: x xs, lvl => \case \elim x, \elim lvl \with {
-        | Left, lvl => helper xs (suc lvl)
-        | Right, suc lvl => helper xs lvl
-        | Right, 0 => false
-      }
+    \func helper (level : Nat) (xs : List Paren) : Bool
+      | 0, nil => true
+      | suc _, nil => false
+      | level, :: Left xs => helper (suc level) xs
+      | 0, :: Right xs => false
+      | suc level, :: Right xs => helper level xs
   }
 
+\func isBalanced-lemma (xs ys : List Paren) (xs-b : isBalanced xs = true) (ys-b : isBalanced ys = true) : isBalanced (xs ++ ys) = true \elim xs
+  | nil => ys-b
+  | :: x xs => {?}
+
 \func testIsBalanced1 : isBalanced nil = true => idp
-
 \func testIsBalanced2 : isBalanced (Left :: Right :: nil) = true => idp
-
 \func testIsBalanced3 : isBalanced (Left :: Left :: Right :: Right :: nil) = true => idp
-
 \func testIsBalanced4 : isBalanced (Left :: Right :: Left :: Right :: nil) = true => idp
-
 \func testIsBalanced5 : isBalanced (Left :: nil) = false => idp
-
 \func testIsBalanced6 : isBalanced (Right :: nil) = false => idp
 
 \data Balanced (xs : List Paren) \with
@@ -175,88 +176,21 @@
   | :: Left xs => cons-balanced {ys : List Paren} (Balanced ys) (xs = ys ++ Right :: nil)
   | xs => append-balanced {ys zs : List Paren} (Balanced ys) (Balanced zs) (xs = ys ++ zs)
 
-\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs => (
-  \lam p => \case \elim xs \with {
-    | nil => nil-balanced
-    | :: b bs => {?}
-    --        \case \elim b \with {
-    --          | Left => cons-balanced {?} {?}
-    --          | Right => {?}
-    --        }
-  },
-  \lam b => \case \elim xs, b \with {
-    | nil, nil-balanced => idp
-    | :: Left xs, cons-balanced {ys} ys-b xs=ys+r => {?}
-    --      \let sub-b => (isBalanced-correct ys).2 ys-b
-    --      \in {?}
-    | xs, append-balanced ys-b zs-b xs=ys+zs => {?}
-  }
-)
-
-\func last {A : \Type} (x : A) (xs : List A) : \Sigma (ys : List A) (y : A) (x :: xs = ys ++ y :: nil)
-  | d, nil => (nil, d, idp)
-  | d, :: x xs =>
-    \let (ls, l, p) => last x xs
-    \in (d :: ls, l, pmap (:: d) p)
-
-\func isBalanced' (xs : List Paren) : Bool
-  | nil => true
-  | :: b xs => \case \elim b, (last b xs) \as ll \with {
-    | Right, _ => false
-    | Left, (ys, y, p) => \case \elim y \with {
-      | Left => false
-      | Right => true
-    }
-  }
-
-\func testIsBalanced1' : isBalanced' nil = true => idp
-
-\func testIsBalanced2' : isBalanced' (Left :: Right :: nil) = true => idp
-
-\func testIsBalanced3' : isBalanced' (Left :: Left :: Right :: Right :: nil) = true => idp
-
-\func testIsBalanced4' : isBalanced' (Left :: Right :: Left :: Right :: nil) = true => idp
-
-\func testIsBalanced5' : isBalanced' (Left :: nil) = false => idp
-
-\func testIsBalanced6' : isBalanced' (Right :: nil) = false => idp
-
-{-
-\data Balanced (xs : List Paren) \with
-  | nil => nil-balanced
-  | :: Left xs => cons-balanced {ys : List Paren} (Balanced ys) (xs = ys ++ Right :: nil)
-  | xs => append-balanced {ys zs : List Paren} (Balanced ys) (Balanced zs) (xs = ys ++ zs)
--}
-
-\func isBalanced'' (xs : List Paren) : Bool
-  | nil => true
-  | :: b xs => {?}
-
-\func isBalanced'-correct (xs : List Paren) : (isBalanced' xs = true) <-> Balanced xs =>
-  (isBal=true->Bal xs, Bal->isBal=true xs)
+\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs => (isBal=true->Bal xs, Bal->isBal=true xs)
   \where {
-    \func isBal=true->Bal (xs : List Paren) (b : isBalanced' xs = true) : Balanced xs \elim xs, b
-      | nil, _ => nil-balanced
-      | :: b bs, isB => \case \elim b \with {
-        | Left => \case (last Left bs) \as p \with {
-          | (ys, Right, p1) => {?}
-          | (ys, Left, p1) => {?}
-        }
+    \func isBal=true->Bal (xs : List Paren) (b : isBalanced xs = true) : Balanced xs \elim xs, b
+      | nil, p => nil-balanced
+      | :: br xs, p => \case \elim br \with {
+        | Left => {?}
         | Right => {?}
       }
 
-    \func Bal->isBal=true (xs : List Paren) (b : Balanced xs) : isBalanced' xs = true \elim xs, b
+    \func Bal->isBal=true (xs : List Paren) (b : Balanced xs) : isBalanced xs = true \elim xs, b
       | nil, nil-balanced => idp
-      | :: Left xs, cons-balanced {ys} ys-b xs=ys+r => mcases \with {
-        | Left => {?}
-        | Right => idp
-      }
-      | xs, append-balanced {ys} {zs} ys-b zs-b xs=ys+zs => {?}
---        \let
---          | by => Bal->isBal=true ys
---          | bz => Bal->isBal=true zs
---          | yy => by ys-b
---          | zz => bz zs-b
---        \in {?}
+      | :: Left xs, cons-balanced b p => {?}
+      | xs, append-balanced {ys} {zs} b-ys b-zs xs=ys++zs =>
+        \let
+          | isBal-ys => Bal->isBal=true ys b-ys
+          | isBal-zs => Bal->isBal=true zs b-zs
+        \in {?}
   }
-
