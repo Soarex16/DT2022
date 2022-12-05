@@ -1,15 +1,58 @@
+\import Arith.Int
+\import Logic (TruncP, inP)
+\import Logic.Meta
+\import Meta
+\import Paths.Meta
 \import Utils
 \import lect12
 
 -- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0.
 
-\func negPred (x : Int) : Int => {?}
+\func negPred (x : Int) : Int \elim x
+  | pos (suc x) => suc x
+  | pos zero => neg 1
+  | neg x => neg (suc x)
+
+\func negPredTest1 : negPred 1 = 1 => idp
+\func negPredTest2 : negPred 0 = -1 => idp
+\func negPredTest3 : negPred -1 = -2 => idp
 
 -- 2. Определите функции сложения и умножения для Int.
 
-\func \infixl 6 + (x y : Int) : Int => {?}
+\func \infixl 6 + (x y : Int) : Int \elim x, y
+  | pos (suc x), pos (suc y) => pos (Nat.+ (suc x) (suc y))
+  | neg (suc x), neg (suc y) => neg (Nat.+ (suc x) (suc y))
+  | pos (suc x), neg (suc y) => pos x + neg y
+  | neg (suc x), pos (suc y) => neg x + pos y
+  | neg x, 0 => neg x
+  | pos x, 0 => pos x
+  | 0, neg y => neg y
+  | 0, pos y => pos y
 
-\func \infixl 7 * (x y : Int) : Int => {?}
+\func addTest1 : -1 + 1 = 0 => idp
+\func addTest2 : 1 + -1 = 0 => idp
+\func addTest4 : 10 + -1 = 9 => idp
+\func addTest3 : -5 + 10 = 5 => idp
+\func addTest5 : 2 + 1 = 3 => idp
+\func addTest6 : -10 + -10 = -20 => idp
+\func addTest7 : 0 + 0 = 0 => idp
+\func addTest8 : 10 + 0 = 10 => idp
+\func addTest9 : 0 + 10 = 10 => idp
+\func addTest10 : -2 + 1 = -1 => idp
+\func addTest11 : 2 + -1 = 1 => idp
+\func addTest12 : neg 0 + pos 0 = pos 0 => idp
+\func addTest13 : -10 + 5 = -5 => idp
+
+\func \infixl 7 * (x y : Int) : Int \elim x, y
+  | pos x, pos y => pos (Nat.* x y)
+  | pos x, neg y => neg (Nat.* x y)
+  | neg (suc x), pos y => neg (Nat.* (suc x) y)
+  | neg (suc x), neg y => pos (Nat.* (suc x) y)
+
+\func mulTest1 : -1 * 1 = -1 => idp
+\func mulTest2 : 10 * 0 = 0 => idp
+\func mulTest3 : -2 * -2 = 4 => idp
+\func mulTest4 : 2 * 3 = 6 => idp
 
 -- 3. Определите тип данных BinNat для бинарных натуральных чисел.
 --    У него должно быть три конструктора: для 0, для чисел вида 2*n и чисел вида 2*n+1.
@@ -17,6 +60,11 @@
 --    Используйте типы данных с условиями, чтобы вычислительно отождествить различные нули.
 
 \data BinNat
+  | bzero
+  | shift BinNat \with {
+    | bzero => bzero
+  }
+  | shift+1 BinNat
 
 -- 4. Докажите, что функция pred сюръективна.
 
@@ -24,11 +72,16 @@
   | 0 => 0
   | suc n => n
 
-\func pred-is-sur : isSur pred => {?}
+\func pred-is-sur : isSur pred => \lam x => \case \elim x \with {
+  | 0 => inP (0, idp)
+  | suc n => inP (suc (suc n), idp)
+}
 
 -- 5. Докажите, что функция suc не сюръективна.
 
-\func suc-is-not-sur (p : isSur suc) : Empty => {?}
+\func suc-is-not-sur (p : isSur suc) : Empty => \case p 0 \with {
+  | inP x => \case x.2
+}
 
 -- 6. Пусть f : A -> B и g : B -> C ─ некоторые функции.
 --    Докажите, что если f и g сюръективны, то g `o` f также сюръективна.
@@ -36,9 +89,17 @@
 
 \func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
 
-\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g `o` f) => {?}
+\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g `o` f) =>
+  \lam c => \case q c \with {
+    | inP (b, g_b=c) => \case p b \with {
+      | inP (a, f_a=b) => inP (a, unfold o (rewrite f_a=b g_b=c))
+    }
+  }
 
-\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g => {?}
+\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g =>
+  \lam c => \case p c \with {
+    | inP (a, gof_a=c) => inP (f a, gof_a=c)
+  }
 
 -- 7. Определите множество конечных подмножеств множества A, то есть списков элементов A с точностью до перестановок и повторений элементов.
 
